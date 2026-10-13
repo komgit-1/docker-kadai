@@ -1,0 +1,38 @@
+services:
+  app: # アプリの定義
+    build: ./app # appフォルダ内のDockerfileを使う
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./app:/app
+    environment:
+      DB_HOST: db
+      # 環境変数を使う
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+    depends_on:
+      # dbコンテナが「healthy」状態になってからappコンテナを起動する
+      db:
+        condition: service_healthy
+
+  db: # データベースの定義
+    image: mysql:8.0
+    volumes:
+      - db-data:/var/lib/mysql
+      # 初期化用SQLをコンテナ内の所定フォルダにマウント
+      - ./db/init:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}       # ← 追加：一般ユーザーを作成する
+      MYSQL_PASSWORD: ${DB_PASSWORD} # ← 追加：一般ユーザーのパスワード
+    # MySQLの生存確認設定（ヘルスチェック）
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"] # ← 修正：パスワード付きでチェック
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes: # ボリュームの定義
+  db-data:
